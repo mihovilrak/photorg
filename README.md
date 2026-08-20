@@ -19,7 +19,7 @@ cargo install photorg                         # with offline geocoding (default)
 cargo install photorg --no-default-features   # smaller, no location support
 ```
 
-Requires Rust 1.75 or newer. Builds on Windows, macOS and Linux with no system
+Requires Rust 1.85 or newer. Builds on Windows, macOS and Linux with no system
 dependencies.
 
 Tagged releases carry prebuilt binaries for six targets, a `SHA256SUMS` file,
@@ -53,7 +53,7 @@ photorg A B --location region
 photorg A B --json > plan.jsonl
 ```
 
-The source and destination must not overlap — a destination inside the source
+The source and destination must not overlap. A destination inside the source
 tree is refused before anything is created.
 
 ## CLI reference
@@ -66,7 +66,7 @@ photorg <SOURCE> <DEST> [OPTIONS]
 | --- | --- | --- |
 | `--group <year\|month\|week\|day\|adaptive>` | `month` | Folder granularity. |
 | `--location [<country\|region\|city>]` | off; bare flag = `region` | Append place folders inside the date path. |
-| `--template <STR>` | — | Explicit path template; overrides `--group` and `--location`. |
+| `--template <STR>` | – | Explicit path template; overrides `--group` and `--location`. |
 | `--mode <copy\|move>` | `copy` | Copy or move the originals. |
 | `--dry-run` | off | Plan and report, write nothing. |
 | `--on-conflict <skip\|rename\|overwrite>` | `rename` | What to do when a **different** file already holds the destination name. |
@@ -75,14 +75,14 @@ photorg <SOURCE> <DEST> [OPTIONS]
 | `--workers <N>` | `4` | Concurrent copies. See [Performance](#performance). |
 | `--adaptive-threshold <N>` | `400` | Files per folder before `--group adaptive` splits a node. |
 | `--json` | off | JSONL on stdout instead of human-readable lines. |
-| `--resume <FILE>` | — | Skip operations already recorded in a journal. Implies `--journal <FILE>`. |
-| `--journal <FILE>` | — | Append every completed operation to this file. |
+| `--resume <FILE>` | – | Skip operations already recorded in a journal. Implies `--journal <FILE>`. |
+| `--journal <FILE>` | – | Append every completed operation to this file. |
 | `--include-sidecars[=<bool>]` | `true` | Carry `.xmp`/`.aae` sidecars along with their stills. `false` ignores them entirely. |
 | `--include-video` | off | Also organize standalone videos. |
 | `--filename-dates[=<bool>]` | `true` | Read dates out of filenames when EXIF has none. |
 | `--follow-symlinks` | off | Follow symlinks while scanning. Off by default: a loop never ends. |
 | `-q, --quiet` | off | Errors only. Stdout records are still written. |
-| `-v, --verbose` | — | Repeat for more detail (`-v` info, `-vv` debug, `-vvv` trace). |
+| `-v, --verbose` | – | Repeat for more detail (`-v` info, `-vv` debug, `-vvv` trace). |
 
 ### What gets picked up
 
@@ -97,8 +97,8 @@ Extensions are matched case-insensitively and then confirmed against the file's
 signature, so a renamed `.txt` is not organized as a photo.
 
 **Standalone videos are skipped unless `--include-video` is given.** A video
-that shares a directory and file stem with a still — an iPhone Live Photo, for
-example — is *not* standalone: it always travels with its still, `--include-video`
+that shares a directory and file stem with a still (an iPhone Live Photo, for
+example) is *not* standalone: it always travels with its still, `--include-video`
 or not.
 
 `--include-sidecars false` drops `.xmp`/`.aae` files at scan time. It does not
@@ -116,7 +116,7 @@ stops an edit sidecar from being orphaned.
 
 These are different things and are reported differently:
 
-- **Duplicate** means *identical bytes* — same size, then BLAKE3. Duplicates are
+- **Duplicate** means *identical bytes* – same size, then BLAKE3. Duplicates are
   skipped with `duplicate-of-source` or `duplicate-of-destination`.
 - **Conflict** means a *different* file already occupies the destination name.
   `--on-conflict rename` (the default) writes `stem_1.ext`, `stem_2.ext`, …;
@@ -128,7 +128,7 @@ produces the same output names.
 
 ## Templates
 
-`--template` takes a path template. It renders **directories only** — the file
+`--template` takes a path template. It renders **directories only** – the file
 name is appended by the tool, and there is no `{filename}` variable.
 
 ```sh
@@ -161,7 +161,7 @@ The `--group` presets are just templates:
 | `month` | `{year}/{month:02}-{month_name}` |
 | `week` | `{iso_year}/{iso_year}-W{iso_week:02}` |
 | `day` | `{year}/{month:02}/{day:02}` |
-| `adaptive` | chosen per node — see below |
+| `adaptive` | chosen per node (see below) |
 
 A template must be relative and must not contain `..`. Unknown variables, an
 unclosed `{`, a bad padding spec, and an empty template are all rejected before
@@ -177,7 +177,7 @@ collection organized on Linux transfers to Windows unchanged:
 - `< > : " / \ | ? *` and control characters become `-`.
 - Components are truncated to 100 bytes on a character boundary. File names are
   truncated in the stem, so the extension survives.
-- Leading and trailing dots and spaces are stripped — Windows drops them
+- Leading and trailing dots and spaces are stripped – Windows drops them
   silently, which would collapse two distinct names onto one.
 - Windows reserved names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`,
   `LPT1`–`LPT9`) get a `_` prefix.
@@ -222,7 +222,7 @@ recorded but does **not** shift the bucketing date.
 This rule exists because without it two copies of the same photo would land in
 different months depending on which link of the fallback chain won.
 
-### Adaptive grouping — read this before using it
+### Adaptive grouping: read this before using it
 
 `--group adaptive` picks a granularity per node, recursively: a year holding
 more than `--adaptive-threshold` files splits into months, and a month over the
@@ -256,7 +256,7 @@ distance away. That is why the default depth is `region`.
 
 GPS handling: latitude and longitude refs are applied (dropping the sign would
 put Zagreb in the southern hemisphere), ranges are validated, zero denominators
-are guarded, and exactly `(0.0, 0.0)` is treated as absent — it is a
+are guarded, and exactly `(0.0, 0.0)` is treated as absent: it is a
 broken-writer sentinel, not Null Island. A photo without usable GPS falls back
 to the date-only path; no `unknown-location` branch is created by default.
 
@@ -312,7 +312,7 @@ Dry runs emit exactly the same records as real runs.
 
 The first Ctrl-C stops issuing new work and lets in-flight copies finish, then
 prints the usual summary; a second one deletes any half-written temp file and
-exits immediately. Either way the destination never keeps a partial `.jpg` —
+exits immediately. Either way the destination never keeps a partial `.jpg` –
 files appear only once they are complete, under their final name. Pass `--journal <FILE>` to record every completed
 operation, then `--resume <FILE>` to pick up where the run stopped. `--resume`
 implies `--journal` with the same file, so a run interrupted twice still makes
@@ -343,7 +343,7 @@ are in [BENCHMARKS.md](BENCHMARKS.md).
 Tested on Linux, Windows, and macOS (x86_64 and ARM64). Every push runs the
 full suite on native Linux, Windows, and macOS runners, because case folding,
 Unicode normalization, path length limits, and symlink handling only behave
-authentically on a real filesystem — `tests/platform.rs` asserts all four.
+authentically on a real filesystem. `tests/platform.rs` asserts all four.
 
 ARM64 Linux release binaries are cross-compiled with `cross` under QEMU. That
 covers **builds only**: filesystem behaviour on ARM is not validated by

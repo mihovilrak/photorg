@@ -20,7 +20,7 @@ pub fn prepare(opts: &Options) -> Result<(PathBuf, PathBuf), FatalError> {
     let source = canonical(&opts.source)?;
     // Overlap is decided before the destination is created: refusing the run
     // and still leaving a new folder inside the source tree is not acceptable.
-    overlap(&source, &absolute(&opts.dest))?;
+    overlap(&source, &resolved(&opts.dest))?;
 
     if !opts.dry_run {
         std::fs::create_dir_all(&opts.dest).map_err(|e| FatalError::DestinationUnavailable {
@@ -35,7 +35,7 @@ pub fn prepare(opts: &Options) -> Result<(PathBuf, PathBuf), FatalError> {
         Ok(d) => d,
         Err(e) if opts.dry_run => {
             log::debug!("destination not canonicalizable yet: {e}");
-            absolute(&opts.dest)
+            resolved(&opts.dest)
         }
         Err(e) => return Err(e),
     };
@@ -60,7 +60,8 @@ fn overlap(source: &Path, dest: &Path) -> Result<(), FatalError> {
 }
 
 /// Lexical absolutization for a path that does not exist yet. `std::path::absolute`
-/// would do this, but it landed after the MSRV.
+/// is not a substitute: it leaves `..` in place, which is exactly the component
+/// the overlap check cannot afford to keep.
 fn absolute(path: &Path) -> PathBuf {
     use std::path::Component;
 
@@ -85,6 +86,32 @@ fn absolute(path: &Path) -> PathBuf {
         }
     }
     plain(&out)
+}
+
+/// Absolute form of a destination that may not exist yet, with whatever part of
+/// it *does* exist canonicalized.
+///
+/// Comparing a canonical source against a merely lexical destination misses an
+/// overlap whenever the two spell the same directory differently: `/var` versus
+/// `/private/var` on macOS, an 8.3 short name or the wrong case on Windows. The
+/// run is then refused a step later, by the post-creation check -- after it has
+/// already created the folder it was about to refuse.
+fn resolved(path: &Path) -> PathBuf {
+    let absolute = absolute(path);
+    let mut tail: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut probe = absolute.as_path();
+    loop {
+        if let Ok(real) = probe.canonicalize() {
+            let mut out = plain(&real);
+            out.extend(tail.iter().rev());
+            return out;
+        }
+        let (Some(parent), Some(name)) = (probe.parent(), probe.file_name()) else {
+            return absolute;
+        };
+        tail.push(name);
+        probe = parent;
+    }
 }
 
 fn canonical(path: &Path) -> Result<PathBuf, FatalError> {
@@ -215,6 +242,42 @@ mod tests {
         fs::create_dir_all(&s).unwrap();
         let o = opts(s.clone(), s.join("out"));
         assert!(matches!(prepare(&o), Err(FatalError::Overlap { .. })));
+    }
+
+    /// The destination spelled through a symlink is still inside the source, and
+    /// the refusal has to happen before `create_dir_all` runs.
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_destination_that_only_overlaps_once_resolved() {
+        let tmp = tempfile::tempdir().unwrap();
+        let s = tmp.path().join("s");
+        fs::create_dir_all(&s).unwrap();
+        let link = tmp.path().join("link");
+        std::os::unix::fs::symlink(&s, &link).unwrap();
+
+        let dest = link.join("out");
+        assert!(matches!(
+            prepare(&opts(s, dest.clone())),
+            Err(FatalError::Overlap { .. })
+        ));
+        assert!(!dest.exists(), "the refused run created the destination");
+    }
+
+    /// Same thing on Windows, where the two spellings differ by case rather
+    /// than by a link.
+    #[cfg(windows)]
+    #[test]
+    fn rejects_a_destination_that_only_overlaps_once_resolved() {
+        let tmp = tempfile::tempdir().unwrap();
+        let s = tmp.path().join("src");
+        fs::create_dir_all(&s).unwrap();
+
+        let dest = tmp.path().join("SRC").join("out");
+        assert!(matches!(
+            prepare(&opts(s, dest.clone())),
+            Err(FatalError::Overlap { .. })
+        ));
+        assert!(!dest.exists(), "the refused run created the destination");
     }
 
     #[test]

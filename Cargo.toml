@@ -2,7 +2,7 @@
 name = "photorg"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.85"
 description = "Fast cross-platform CLI that organizes photos into date- and location-structured folders"
 license = "MIT"
 readme = "README.md"
