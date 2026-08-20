@@ -1,0 +1,60 @@
+[package]
+name = "photorg"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Fast cross-platform CLI that organizes photos into date- and location-structured folders"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/mihovilrak/photorg"
+homepage = "https://github.com/mihovilrak/photorg"
+documentation = "https://docs.rs/photorg"
+authors = ["Mihovil Rak <mihovil.1978@gmail.com>"]
+keywords = ["photos", "exif", "organize", "cli", "geocoding"]
+categories = ["command-line-utilities", "filesystem", "multimedia::images"]
+exclude = ["Plan.md", "review*.md", "CLAUDE.md", "BENCHMARKS.md", "data/make_cities.py", "/.github"]
+
+[[bin]]
+name = "photorg"
+path = "src/main.rs"
+
+[lib]
+name = "photorg"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+rayon = "1"
+jwalk = "0.8"
+kamadak-exif = "0.6"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+indicatif = "0.17"
+log = "0.4"
+# No regex/jiff: `RUST_LOG` only ever selects modules and levels here, and the
+# regex filter alone is a third of the crate's from-scratch build time.
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
+unicode-normalization = "0.1"
+ctrlc = "3"
+
+[features]
+default = ["geocoding"]
+# The dataset is embedded, not a dependency: see src/cities.rs.
+geocoding = []
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

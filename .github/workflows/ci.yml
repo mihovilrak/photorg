@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  # Filesystem behaviour (case folding, NFD, path length, symlinks) is only
+  # real on a native runner, so the test matrix never uses emulation.
+  test:
+    name: test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-features --all-targets
+      - run: cargo test --no-default-features
+
+  msrv:
+    name: msrv 1.75
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.75.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --all-features --all-targets
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-features --all-targets
+
+  # §1 NFR: nothing may touch the network at runtime. `--offline` proves the
+  # build needs no fetch; the dataset is compiled in.
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch
+      - run: cargo test --offline --all-features
+
+      # A socket cannot be opened by a crate that is not linked in. This fails
+      # the build the moment a dependency drags one in transitively.
+      - name: no network-capable dependency
+        run: |
+          found=$(cargo tree --all-features --prefix none --no-dedupe | awk '{print $1}' | sort -u | grep -Ei '^(reqwest|hyper|ureq|curl|tokio|socket2|rustls|native-tls|openssl|trust-dns.*|hickory-.*|attohttpc|isahc|surf)$' || true)
+          if [ -n "$found" ]; then echo "network crates linked in: $found"; exit 1; fi
+
+      # §1 NFR: stripped release binary < 5 MB, < 8 MB with the dataset.
+      - name: binary size budget
+        run: |
+          check() {
+            size=$(stat -c%s "$1")
+            echo "$1: $size bytes (budget $2)"
+            [ "$size" -lt "$2" ] || { echo "over budget"; exit 1; }
+          }
+          cargo build --offline --release --no-default-features
+          check target/release/photorg 5242880
+          cargo build --offline --release --all-features
+          check target/release/photorg 8388608
